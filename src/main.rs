@@ -6,6 +6,7 @@ use ethereum_types::Address;
 use data_source::{fetch_token_transactions, EtherscanTokenTxList};
 
 pub mod data_source;
+pub mod swap;
 
 type Year = u16;
 
@@ -30,6 +31,8 @@ async fn main() {
                 process::exit(1);
             }
         };
+
+    dbg!(transactions.token_swaps());
 
     println!("Total gas usage: {}", transactions.total_gas_cost());
 }

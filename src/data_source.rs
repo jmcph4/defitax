@@ -3,9 +3,11 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use ethereum_types::{Address, H256, U256};
-use serde::de::{self, Deserializer, Unexpected, Error};
+use serde::de::{self, Deserializer, Error, Unexpected};
 use serde::{Deserialize, Serialize};
 use serde_json;
+
+use crate::swap::{scale_token_amount, TokenQuantity, TokenSwap};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EtherscanTokenTx {
@@ -68,7 +70,6 @@ where
     })
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EtherscanTokenTxList(pub Vec<EtherscanTokenTx>);
 
@@ -88,6 +89,42 @@ impl EtherscanTokenTxList {
             .collect::<Vec<u64>>()
             .iter()
             .sum()
+    }
+
+    pub fn token_swaps(&self) -> Vec<TokenSwap> {
+        let txs: &Vec<EtherscanTokenTx> = &self.0;
+        let n: usize = txs.len();
+
+        let mut swaps: Vec<TokenSwap> = vec![];
+
+        for i in 1..n {
+            let prev_tx: &EtherscanTokenTx = &txs[i - 1];
+            let curr_tx: &EtherscanTokenTx = &txs[i];
+
+            if prev_tx.from == curr_tx.to {
+                /* it's a swap */
+                swaps.push(TokenSwap {
+                    from: TokenQuantity {
+                        ticker: prev_tx.token_symbol.clone(),
+                        amount: scale_token_amount(
+                            prev_tx.value,
+                            prev_tx.token_decimal,
+                        ),
+                        reference_amount: None,
+                    },
+                    to: TokenQuantity {
+                        ticker: curr_tx.token_symbol.clone(),
+                        amount: scale_token_amount(
+                            curr_tx.value,
+                            curr_tx.token_decimal,
+                        ),
+                        reference_amount: None,
+                    },
+                });
+            }
+        }
+
+        swaps
     }
 }
 
@@ -112,8 +149,15 @@ pub async fn fetch_token_transactions(
 
     let response: EtherscanTokenResponse = match serde_json::from_str(&body) {
         Ok(t) => t,
-        Err(e) => return Err(format!("fetch_token_transactions: {}", e))
+        Err(e) => return Err(format!("fetch_token_transactions: {}", e)),
     };
 
     Ok(EtherscanTokenTxList(response.result))
+}
+
+pub fn get_reference_price(
+    ticker: String,
+    amount: U256,
+) -> Result<u128, String> {
+    todo!()
 }
